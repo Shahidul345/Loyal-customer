@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Honda Dealer Sales Entry</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--text:#1c2430;--muted:#6b7686;--line:#dde1e8;--accent:#cc0000;--ok:#12805c;--err:#c2332b}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212a;--text:#e7ebf0;--muted:#8b97a8;--line:#2d3644;--accent:#ff5a4f;--ok:#3fbf94;--err:#ff7a70}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 12px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tab{background:var(--card);color:var(--text);border:1px solid var(--line)}
+.tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+input,select{font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);text-transform:none;letter-spacing:0;font-weight:400;width:100%}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.row{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.info{grid-column:1/-1;font-size:13px;color:var(--muted)}
+button{font:inherit;font-weight:600;padding:10px 18px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line);padding:8px 12px}
+.ok{color:var(--ok)}.err{color:var(--err)}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.head h2{font-size:16px;margin:0}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:640px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.w{white-space:normal;min-width:160px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+tr.tot td{font-weight:700;border-top:2px solid var(--line)}
+.zero{color:var(--muted)}
+.hide{display:none}
+#login{max-width:340px}
+</style>
+</head>
+<body>
+<main>
+<h1>Honda Dealer Sales</h1>
+<div class="tabs"><button class="tab on" id="t1">Entry</button><button class="tab" id="t2">Summary (admin)</button></div>
+
+<section id="p1">
+<div class="card">
+<form id="f">
+<label>DLR (Dealer)<select name="dlr" id="dsel" required><option value="">Select dealer…</option></select></label>
+<label>Customer Name<input name="customer" required maxlength="120" autocomplete="off"></label>
+<label>Chassis<input name="chassis" required maxlength="60" autocomplete="off"></label>
+<label>Date of Purchase<input name="date" type="date" required></label>
+<label>Model<input name="model" required maxlength="60" autocomplete="off"></label>
+<div class="info" id="dinfo"></div>
+<div class="row"><button id="b" type="submit">Submit</button><span id="msg"></span></div>
+</form>
+</div>
+</section>
+
+<section id="p2" class="hide">
+<div class="card" id="loginCard">
+<form id="login">
+<label>Admin email<input name="email" type="email" required></label>
+<label>Password<input name="password" type="password" required></label>
+<div class="row"><button type="submit">Sign in</button><span id="lmsg" class="err"></span></div>
+</form>
+</div>
+<div id="adminArea" class="hide">
+<div class="card">
+<div class="head"><h2>Dealer-wise summary</h2>
+<span><button class="ghost" id="dls">Download Summary CSV</button> <button class="ghost" id="dla">Download All Records CSV</button> <button class="ghost" id="out">Sign out</button></span></div>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>Dealer</th><th>Service PIC</th><th>District</th><th>Thana</th><th>Units</th><th>Models</th><th>Last Purchase</th></tr></thead>
+<tbody id="sb"></tbody></table></div>
+</div>
+<div class="card">
+<div class="head"><h2>All records (<span id="n">0</span>)</h2></div>
+<div class="scroll"><table>
+<thead><tr><th>DLR</th><th>Customer Name</th><th>Chassis</th><th>Date of Purchase</th><th>Model</th></tr></thead>
+<tbody id="tb"></tbody></table></div>
+</div>
+</div>
+</section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ====== 1) PASTE YOUR SUPABASE VALUES HERE (Project Settings -> API) ======
+var SUPABASE_URL = "https://rsvopqifgobceauytmsa.supabase.co";
+var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdm9wcWlmZ29iY2VhdXl0bXNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE0NDgxNTksImV4cCI6MjEwNzAyNDE1OX0.7-Myz9wZgG4fbge0XsxpVIK2H9oIOkWHB_2-am-DXCk";   // anon/public key ONLY. Never the service_role key.
+// =========================================================================
+
+var D="HONDA GALLERY|Shahidul San|Open|Chottogram|Noakhali|Maizdi\nRahman Motors|Shahidul San|Open|Chottogram|Noakhali|Begumgonj\nRahman Motors-Subarnachar|Shahidul San|Open|Chottogram|Noakhali|Subarnachar\nN Rahman Motors|Shahidul San|Open|Chottogram|Lakshmipur|Lakshmipur Sadar\nSamia Auto|Shahidul San|Open|Chottogram|Cumilla|Comilla Sadar\nNabila Motors|Zion San|Open|Chottogram|Cumilla|Comilla Sadar\nAbir Honda|Zion San|Open|Chottogram|Chandpur|Chandpur Sadar\nGold Wing|Safi San|Open|Chottogram|Feni|Feni Sadar\nChhagalnaiya Honda Center|Safi San|Open|Chottogram|Feni|Chhagolnaiya\nAdarsha Honda Gallery|Zion San|Open|Chottogram|Cumilla|Laksham\nBRAHMANBARIA HONDA GALLERY|Shahidul San|Open|Chottogram|B.Baria|B.Baria Sadar\nPremium Motors|Shahidul San|Open|Chottogram|Lakshmipur|Ramganj\nCumilla Bike Center|Shahidul San|Open|Chottogram|Cumilla|Adarsha Sadar\nM/S. Ambiya Traders|Safi San|Open|Chottogram|Khagrachari|Khagrachari\nN M Honda Center|Zion San|Open|Chottogram|Chattogram|Double Mooring\nBinning & Company (Bangladesh) Limited|Zion San|Open|Chottogram|Chattogram|Paslaish\nSharit Honda|Zion San|Open|Chottogram|Chattogram|Lohagara\nM/S. Al Borak Honda Center|Safi San|Open|Chottogram|Chattogram|Fatikchari\nS.N.B Traders|Zion San|Open|Chottogram|Cox's Bazar|Chokoriya\nHossain Motors|Zion San|Open|Chottogram|Cox's Bazar|Cox's Bazar\nHuda Corporation|Zion San|Open|Chottogram|Chattogram|Anowara\nShah Corporation|Safi San|Open|Chottogram|Chattogram|Halishahor".split("\n").map(function(l){var a=l.split("|");return{name:a[0],pic:a[1],status:a[2],division:a[3],district:a[4],thana:a[5]}});
+
+var $=function(i){return document.getElementById(i)};
+var sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+var f=$('f'),b=$('b'),msg=$('msg'),dsel=$('dsel'),dinfo=$('dinfo'),rows=[];
+function say(t,c){msg.textContent=t;msg.className=c||''}
+function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML}
+D.forEach(function(d){var o=document.createElement('option');o.value=d.name;o.textContent=d.name;dsel.appendChild(o)});
+dsel.onchange=function(){var d=D.filter(function(x){return x.name===dsel.value})[0];
+ dinfo.textContent=d?('Service PIC: '+d.pic+' · '+d.division+' › '+d.district+' › '+d.thana):''};
+
+function tab(n){$('p1').classList.toggle('hide',n!==1);$('p2').classList.toggle('hide',n!==2);
+ $('t1').classList.toggle('on',n===1);$('t2').classList.toggle('on',n===2);if(n===2)checkSession()}
+$('t1').onclick=function(){tab(1)};$('t2').onclick=function(){tab(2)};
+
+// ---------- Entry (public) ----------
+f.addEventListener('submit',async function(ev){
+ ev.preventDefault();
+ var v=Object.fromEntries(new FormData(f).entries());
+ Object.keys(v).forEach(function(k){v[k]=String(v[k]).trim()});
+ var d=D.filter(function(x){return x.name===v.dlr})[0]||{};
+ var row={dlr:v.dlr,customer:v.customer,chassis:v.chassis,purchase_date:v.date,model:v.model,pic:d.pic||'',district:d.district||'',thana:d.thana||''};
+ b.disabled=true;say('Saving…');
+ var r=await sb.from('records').insert(row);
+ if(r.error){say('Save failed: '+r.error.message,'err')}
+ else{f.reset();dinfo.textContent='';say('Saved ✓','ok');dsel.focus()}
+ b.disabled=false;
+});
+
+// ---------- Admin ----------
+async function checkSession(){
+ var s=await sb.auth.getSession();
+ var ok=s.data&&s.data.session;
+ $('loginCard').classList.toggle('hide',!!ok);$('adminArea').classList.toggle('hide',!ok);
+ if(ok)loadAll();
+}
+$('login').addEventListener('submit',async function(ev){
+ ev.preventDefault();$('lmsg').textContent='';
+ var fd=new FormData(ev.target);
+ var r=await sb.auth.signInWithPassword({email:fd.get('email'),password:fd.get('password')});
+ if(r.error){$('lmsg').textContent=r.error.message;return}
+ checkSession();
+});
+$('out').onclick=async function(){await sb.auth.signOut();rows=[];checkSession()};
+
+async function loadAll(){
+ var all=[],from=0,size=1000;
+ while(true){
+  var r=await sb.from('records').select('*').order('created_at',{ascending:false}).range(from,from+size-1);
+  if(r.error){alert('Could not load: '+r.error.message);break}
+  all=all.concat(r.data);if(r.data.length<size)break;from+=size;
+ }
+ rows=all;render();
+}
+function summary(){
+ var map={};D.forEach(function(d){map[d.name]={d:d,units:0,models:{},last:''}});
+ rows.forEach(function(r){var k=r.dlr;
+  if(!map[k])map[k]={d:{name:k,pic:'',district:'',thana:'',division:''},units:0,models:{},last:''};
+  var m=map[k];m.units++;var mo=(r.model||'').trim().toUpperCase();if(mo)m.models[mo]=(m.models[mo]||0)+1;
+  if(r.purchase_date&&r.purchase_date>m.last)m.last=r.purchase_date});
+ return Object.keys(map).map(function(k){var m=map[k];
+  m.mtxt=Object.keys(m.models).sort(function(a,b){return m.models[b]-m.models[a]}).map(function(x){return x+' ×'+m.models[x]}).join(', ');return m});
+}
+function render(){
+ var s=summary(),tot=0;
+ $('sb').innerHTML=s.map(function(m,i){tot+=m.units;
+  return '<tr><td>'+(i+1)+'</td><td>'+esc(m.d.name)+'</td><td>'+esc(m.d.pic)+'</td><td>'+esc(m.d.district)+'</td><td>'+esc(m.d.thana)+'</td><td class="'+(m.units?'':'zero')+'">'+m.units+'</td><td class="w">'+esc(m.mtxt)+'</td><td>'+esc(m.last)+'</td></tr>'}).join('')
+  +'<tr class="tot"><td></td><td>Total</td><td></td><td></td><td></td><td>'+tot+'</td><td></td><td></td></tr>';
+ $('n').textContent=rows.length;
+ $('tb').innerHTML=rows.map(function(r){return '<tr><td>'+esc(r.dlr)+'</td><td>'+esc(r.customer)+'</td><td>'+esc(r.chassis)+'</td><td>'+esc(r.purchase_date)+'</td><td>'+esc(r.model)+'</td></tr>'}).join('');
+}
+function csv(head,data){var q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'};
+ return '\ufeff'+[head.map(q).join(',')].concat(data.map(function(r){return r.map(q).join(',')})).join('\r\n')}
+function save(name,text){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+$('dls').onclick=function(){save('dealer-summary.csv',csv(['Dealer','Service PIC','Division','District','Thana','Units','Models','Last Purchase'],
+ summary().map(function(m){return [m.d.name,m.d.pic,m.d.division||'',m.d.district,m.d.thana,m.units,m.mtxt,m.last]})))};
+$('dla').onclick=function(){save('all-records.csv',csv(['DLR','Service PIC','District','Thana','Customer Name','Chassis','Date of Purchase','Model'],
+ rows.map(function(r){return [r.dlr,r.pic,r.district,r.thana,r.customer,r.chassis,r.purchase_date,r.model]})))};
+</script>
+</body>
+</html>
