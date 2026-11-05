@@ -48,6 +48,7 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <form id="f">
 <label>DLR (Dealer)<select name="dlr" id="dsel" required><option value="">Select dealer…</option></select></label>
 <label>Customer Name<input name="customer" required maxlength="120" autocomplete="off"></label>
+<label>Phone No<input name="phone" type="tel" required maxlength="20" inputmode="tel" autocomplete="off" placeholder="01XXXXXXXXX"></label>
 <label>Chassis<input name="chassis" required maxlength="60" autocomplete="off"></label>
 <label>Date of Purchase<input name="date" type="date" required></label>
 <label>Model<select name="model" id="msel" required><option value="">Select model…</option></select></label>
@@ -61,7 +62,7 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <section id="p3" class="hide">
 <div class="card">
 <div class="head"><h2>Bulk upload</h2><button class="ghost" id="tpl">Download template (CSV)</button></div>
-<p class="info" style="margin:0 0 10px">Columns in this order: <b>DLR, Customer Name, Chassis, Date of Purchase, Model</b>. DLR and Model must match the dropdown lists exactly. Date: DD/MM/YYYY or YYYY-MM-DD. Paste rows copied from Excel, or choose a CSV file.</p>
+<p class="info" style="margin:0 0 10px">Columns in this order: <b>DLR, Customer Name, Phone No, Chassis, Date of Purchase, Model</b>. DLR and Model must match the dropdown lists exactly. Date: DD/MM/YYYY or YYYY-MM-DD. Paste rows copied from Excel, or choose a CSV file.</p>
 <label>Choose CSV file<input type="file" id="bfile" accept=".csv,.txt"></label>
 <label style="margin-top:10px">…or paste rows here<textarea id="bpaste" rows="6" style="font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);width:100%"></textarea></label>
 <div class="row" style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="bcheck">Check rows</button><button id="bsend" disabled>Upload valid rows</button><span id="bmsg"></span></div>
@@ -69,7 +70,7 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <div class="card hide" id="bprev">
 <div class="head"><h2>Preview: <span id="bsum"></span></h2></div>
 <div class="scroll"><table>
-<thead><tr><th>#</th><th>DLR</th><th>Customer Name</th><th>Chassis</th><th>Date</th><th>Model</th><th>Status</th></tr></thead>
+<thead><tr><th>#</th><th>DLR</th><th>Customer Name</th><th>Phone</th><th>Chassis</th><th>Date</th><th>Model</th><th>Status</th></tr></thead>
 <tbody id="bbody"></tbody></table></div>
 </div>
 </section>
@@ -93,7 +94,7 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <div class="card">
 <div class="head"><h2>All records (<span id="n">0</span>)</h2></div>
 <div class="scroll"><table>
-<thead><tr><th>DLR</th><th>Customer Name</th><th>Chassis</th><th>Date of Purchase</th><th>Model</th></tr></thead>
+<thead><tr><th>DLR</th><th>Customer Name</th><th>Phone</th><th>Chassis</th><th>Date of Purchase</th><th>Model</th></tr></thead>
 <tbody id="tb"></tbody></table></div>
 </div>
 </div>
@@ -116,6 +117,7 @@ var msel=document.getElementById('msel');
 M.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;msel.appendChild(o)});
 var oo=document.createElement('option');oo.value='__other';oo.textContent='Other (type below)';msel.appendChild(oo);
 msel.onchange=function(){var on=msel.value==='__other';document.getElementById('oth').classList.toggle('hide',!on);document.getElementById('othin').required=on};
+function normPhone(x){var d=String(x||'').replace(/[^0-9+]/g,'');var n=d.replace(/\D/g,'');if(n.length<10||n.length>15)return null;if(n.length===10&&n[0]==='1')d='0'+d;return d}
 var f=$('f'),b=$('b'),msg=$('msg'),dsel=$('dsel'),dinfo=$('dinfo'),rows=[];
 function say(t,c){msg.textContent=t;msg.className=c||''}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML}
@@ -135,7 +137,8 @@ f.addEventListener('submit',async function(ev){
  var d=D.filter(function(x){return x.name===v.dlr})[0]||{};
  if(v.model==='__other')v.model=(v.other||'').trim();
  if(!v.model){say('Please type the model.','err');return}
- var row={dlr:v.dlr,customer:v.customer,chassis:v.chassis,purchase_date:v.date,model:v.model,pic:d.pic||'',district:d.district||'',thana:d.thana||''};
+ var ph=normPhone(v.phone);if(!ph){say('Please enter a valid phone number (10 to 15 digits).','err');return}
+ var row={dlr:v.dlr,customer:v.customer,phone:ph,chassis:v.chassis,purchase_date:v.date,model:v.model,pic:d.pic||'',district:d.district||'',thana:d.thana||''};
  b.disabled=true;say('Saving…');
  var r=await sb.from('records').insert(row);
  if(r.error){say('Save failed: '+r.error.message,'err')}
@@ -183,15 +186,15 @@ function render(){
   return '<tr><td>'+(i+1)+'</td><td>'+esc(m.d.name)+'</td><td>'+esc(m.d.pic)+'</td><td>'+esc(m.d.district)+'</td><td>'+esc(m.d.thana)+'</td><td class="'+(m.units?'':'zero')+'">'+m.units+'</td><td class="w">'+esc(m.mtxt)+'</td><td>'+esc(m.last)+'</td></tr>'}).join('')
   +'<tr class="tot"><td></td><td>Total</td><td></td><td></td><td></td><td>'+tot+'</td><td></td><td></td></tr>';
  $('n').textContent=rows.length;
- $('tb').innerHTML=rows.map(function(r){return '<tr><td>'+esc(r.dlr)+'</td><td>'+esc(r.customer)+'</td><td>'+esc(r.chassis)+'</td><td>'+esc(r.purchase_date)+'</td><td>'+esc(r.model)+'</td></tr>'}).join('');
+ $('tb').innerHTML=rows.map(function(r){return '<tr><td>'+esc(r.dlr)+'</td><td>'+esc(r.customer)+'</td><td>'+esc(r.phone)+'</td><td>'+esc(r.chassis)+'</td><td>'+esc(r.purchase_date)+'</td><td>'+esc(r.model)+'</td></tr>'}).join('');
 }
 function csv(head,data){var q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'};
  return '\ufeff'+[head.map(q).join(',')].concat(data.map(function(r){return r.map(q).join(',')})).join('\r\n')}
 function save(name,text){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
 $('dls').onclick=function(){save('dealer-summary.csv',csv(['Dealer','Service PIC','Division','District','Thana','Units','Models','Last Purchase'],
  summary().map(function(m){return [m.d.name,m.d.pic,m.d.division||'',m.d.district,m.d.thana,m.units,m.mtxt,m.last]})))};
-$('dla').onclick=function(){save('all-records.csv',csv(['DLR','Service PIC','District','Thana','Customer Name','Chassis','Date of Purchase','Model'],
- rows.map(function(r){return [r.dlr,r.pic,r.district,r.thana,r.customer,r.chassis,r.purchase_date,r.model]})))};
+$('dla').onclick=function(){save('all-records.csv',csv(['DLR','Service PIC','District','Thana','Customer Name','Phone','Chassis','Date of Purchase','Model'],
+ rows.map(function(r){return [r.dlr,r.pic,r.district,r.thana,r.customer,r.phone,r.chassis,r.purchase_date,r.model]})))};
 
 // ---------- Bulk upload ----------
 var good=[];
@@ -210,20 +213,20 @@ function normDate(x){x=(x||'').trim();var m;
 function chk(y,mo,d){var t=new Date(Date.UTC(y,mo-1,d));if(t.getUTCFullYear()!==y||t.getUTCMonth()!==mo-1||t.getUTCDate()!==d)return null;
  return y+'-'+('0'+mo).slice(-2)+'-'+('0'+d).slice(-2)}
 $('bfile').onchange=function(e){var fl=e.target.files[0];if(!fl)return;var r=new FileReader();r.onload=function(){$('bpaste').value=r.result};r.readAsText(fl)};
-$('tpl').onclick=function(){save('bulk-template.csv',csv(['DLR','Customer Name','Chassis','Date of Purchase','Model'],[['Gold Wing','Example Customer','ME4JC12345','05/11/2026','CB Shine']]))};
+$('tpl').onclick=function(){save('bulk-template.csv',csv(['DLR','Customer Name','Phone No','Chassis','Date of Purchase','Model'],[['Gold Wing','Example Customer','01712345678','ME4JC12345','05/11/2026','CB Shine']]))};
 $('bcheck').onclick=function(){
  var rowsIn=parseCSV($('bpaste').value||'');good=[];
  if(rowsIn.length&&(rowsIn[0][0]||'').trim().toLowerCase().replace(/[^a-z]/g,'')==='dlr')rowsIn.shift();
  var seen={},html='',bad=0;
  rowsIn.forEach(function(r,i){
-  var dn=(r[0]||'').trim(),cu=(r[1]||'').trim(),ch=(r[2]||'').trim(),dt=normDate(r[3]),mo=(r[4]||'').trim(),err=[];
+  var dn=(r[0]||'').trim(),cu=(r[1]||'').trim(),ph=normPhone(r[2]),ch=(r[3]||'').trim(),dt=normDate(r[4]),mo=(r[5]||'').trim(),err=[];
   var d=D.filter(function(x){return x.name.toLowerCase()===dn.toLowerCase()})[0];
   var mm=M.filter(function(x){return x.toLowerCase()===mo.toLowerCase()})[0];
-  if(!d)err.push('Dealer not in list');if(!cu)err.push('Customer missing');if(!ch)err.push('Chassis missing');
+  if(!d)err.push('Dealer not in list');if(!cu)err.push('Customer missing');if(!ph)err.push('Bad phone');if(!ch)err.push('Chassis missing');
   if(!dt)err.push('Bad date');if(!mm)err.push('Model not in list');
   var k=ch.toLowerCase();if(ch){if(seen[k])err.push('Duplicate chassis (row '+seen[k]+')');else seen[k]=i+1}
-  if(!err.length)good.push({dlr:d.name,customer:cu,chassis:ch,purchase_date:dt,model:mm,pic:d.pic,district:d.district,thana:d.thana});else bad++;
-  html+='<tr><td>'+(i+1)+'</td><td>'+esc(dn)+'</td><td>'+esc(cu)+'</td><td>'+esc(ch)+'</td><td>'+esc(r[3])+'</td><td>'+esc(mo)+'</td><td class="'+(err.length?'err':'ok')+'">'+(err.length?esc(err.join(', ')):'OK')+'</td></tr>'});
+  if(!err.length)good.push({dlr:d.name,customer:cu,phone:ph,chassis:ch,purchase_date:dt,model:mm,pic:d.pic,district:d.district,thana:d.thana});else bad++;
+  html+='<tr><td>'+(i+1)+'</td><td>'+esc(dn)+'</td><td>'+esc(cu)+'</td><td>'+esc(r[2])+'</td><td>'+esc(ch)+'</td><td>'+esc(r[4])+'</td><td>'+esc(mo)+'</td><td class="'+(err.length?'err':'ok')+'">'+(err.length?esc(err.join(', ')):'OK')+'</td></tr>'});
  $('bbody').innerHTML=html;$('bprev').classList.toggle('hide',!rowsIn.length);
  $('bsum').textContent=good.length+' valid, '+bad+' with errors';
  $('bsend').disabled=!good.length;
