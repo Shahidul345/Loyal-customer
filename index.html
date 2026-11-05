@@ -41,7 +41,7 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <body>
 <main>
 <h1>Honda Dealer Sales</h1>
-<div class="tabs"><button class="tab on" id="t1">Entry</button><button class="tab" id="t2">Summary (admin)</button></div>
+<div class="tabs"><button class="tab on" id="t1">Entry</button><button class="tab" id="t3">Bulk Upload</button><button class="tab" id="t2">Summary (admin)</button></div>
 
 <section id="p1">
 <div class="card">
@@ -50,10 +50,27 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <label>Customer Name<input name="customer" required maxlength="120" autocomplete="off"></label>
 <label>Chassis<input name="chassis" required maxlength="60" autocomplete="off"></label>
 <label>Date of Purchase<input name="date" type="date" required></label>
-<label>Model<input name="model" required maxlength="60" autocomplete="off"></label>
+<label>Model<select name="model" id="msel" required><option value="">Select model…</option></select></label>
+<label id="oth" class="hide">Other model (type)<input name="other" id="othin" maxlength="60" autocomplete="off"></label>
 <div class="info" id="dinfo"></div>
 <div class="row"><button id="b" type="submit">Submit</button><span id="msg"></span></div>
 </form>
+</div>
+</section>
+
+<section id="p3" class="hide">
+<div class="card">
+<div class="head"><h2>Bulk upload</h2><button class="ghost" id="tpl">Download template (CSV)</button></div>
+<p class="info" style="margin:0 0 10px">Columns in this order: <b>DLR, Customer Name, Chassis, Date of Purchase, Model</b>. DLR and Model must match the dropdown lists exactly. Date: DD/MM/YYYY or YYYY-MM-DD. Paste rows copied from Excel, or choose a CSV file.</p>
+<label>Choose CSV file<input type="file" id="bfile" accept=".csv,.txt"></label>
+<label style="margin-top:10px">…or paste rows here<textarea id="bpaste" rows="6" style="font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);width:100%"></textarea></label>
+<div class="row" style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="bcheck">Check rows</button><button id="bsend" disabled>Upload valid rows</button><span id="bmsg"></span></div>
+</div>
+<div class="card hide" id="bprev">
+<div class="head"><h2>Preview: <span id="bsum"></span></h2></div>
+<div class="scroll"><table>
+<thead><tr><th>#</th><th>DLR</th><th>Customer Name</th><th>Chassis</th><th>Date</th><th>Model</th><th>Status</th></tr></thead>
+<tbody id="bbody"></tbody></table></div>
 </div>
 </section>
 
@@ -94,6 +111,11 @@ var D="HONDA GALLERY|Shahidul San|Open|Chottogram|Noakhali|Maizdi\nRahman Motors
 
 var $=function(i){return document.getElementById(i)};
 var sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+var M="CD-80|Activa|CB Hornet ABS|CB Hornet CBS|CB Hornet STD|CB Shine|CB Shine SP|CB Shine SP CBS|CB Trigger|Trigger DLX|Trigger STD|CBR 150R|CBR 150RAM-4PH|Dio|Dio DLX|Shine 100|Dream 110|Dream Neo|Livo Disc|Livo Disc CBS|Livo Drum|Livo Drum CBS|REPSOL|Wave Alpha|X Blade ABS|X Blade STD|X Blade Fi ABS|SP 125|SP 160|Hornet 2.0|NX 200|Shine 100 DX".split("|");
+var msel=document.getElementById('msel');
+M.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;msel.appendChild(o)});
+var oo=document.createElement('option');oo.value='__other';oo.textContent='Other (type below)';msel.appendChild(oo);
+msel.onchange=function(){var on=msel.value==='__other';document.getElementById('oth').classList.toggle('hide',!on);document.getElementById('othin').required=on};
 var f=$('f'),b=$('b'),msg=$('msg'),dsel=$('dsel'),dinfo=$('dinfo'),rows=[];
 function say(t,c){msg.textContent=t;msg.className=c||''}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML}
@@ -101,9 +123,9 @@ D.forEach(function(d){var o=document.createElement('option');o.value=d.name;o.te
 dsel.onchange=function(){var d=D.filter(function(x){return x.name===dsel.value})[0];
  dinfo.textContent=d?('Service PIC: '+d.pic+' · '+d.division+' › '+d.district+' › '+d.thana):''};
 
-function tab(n){$('p1').classList.toggle('hide',n!==1);$('p2').classList.toggle('hide',n!==2);
- $('t1').classList.toggle('on',n===1);$('t2').classList.toggle('on',n===2);if(n===2)checkSession()}
-$('t1').onclick=function(){tab(1)};$('t2').onclick=function(){tab(2)};
+function tab(n){$('p1').classList.toggle('hide',n!==1);$('p2').classList.toggle('hide',n!==2);$('p3').classList.toggle('hide',n!==3);
+ $('t1').classList.toggle('on',n===1);$('t2').classList.toggle('on',n===2);$('t3').classList.toggle('on',n===3);if(n===2)checkSession()}
+$('t1').onclick=function(){tab(1)};$('t2').onclick=function(){tab(2)};$('t3').onclick=function(){tab(3)};
 
 // ---------- Entry (public) ----------
 f.addEventListener('submit',async function(ev){
@@ -111,11 +133,13 @@ f.addEventListener('submit',async function(ev){
  var v=Object.fromEntries(new FormData(f).entries());
  Object.keys(v).forEach(function(k){v[k]=String(v[k]).trim()});
  var d=D.filter(function(x){return x.name===v.dlr})[0]||{};
+ if(v.model==='__other')v.model=(v.other||'').trim();
+ if(!v.model){say('Please type the model.','err');return}
  var row={dlr:v.dlr,customer:v.customer,chassis:v.chassis,purchase_date:v.date,model:v.model,pic:d.pic||'',district:d.district||'',thana:d.thana||''};
  b.disabled=true;say('Saving…');
  var r=await sb.from('records').insert(row);
  if(r.error){say('Save failed: '+r.error.message,'err')}
- else{f.reset();dinfo.textContent='';say('Saved ✓','ok');dsel.focus()}
+ else{f.reset();dinfo.textContent='';document.getElementById('oth').classList.add('hide');document.getElementById('othin').required=false;say('Saved ✓','ok');dsel.focus()}
  b.disabled=false;
 });
 
@@ -168,6 +192,52 @@ $('dls').onclick=function(){save('dealer-summary.csv',csv(['Dealer','Service PIC
  summary().map(function(m){return [m.d.name,m.d.pic,m.d.division||'',m.d.district,m.d.thana,m.units,m.mtxt,m.last]})))};
 $('dla').onclick=function(){save('all-records.csv',csv(['DLR','Service PIC','District','Thana','Customer Name','Chassis','Date of Purchase','Model'],
  rows.map(function(r){return [r.dlr,r.pic,r.district,r.thana,r.customer,r.chassis,r.purchase_date,r.model]})))};
+
+// ---------- Bulk upload ----------
+var good=[];
+function parseCSV(t){var out=[],row=[],c='',q=false,delim=t.indexOf('\t')>-1?'\t':',';
+ for(var i=0;i<t.length;i++){var ch=t[i];
+  if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+  else if(ch==='"')q=true;
+  else if(ch===delim){row.push(c);c=''}
+  else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(c);c='';if(row.some(function(x){return x.trim()}))out.push(row);row=[]}
+  else c+=ch}
+ row.push(c);if(row.some(function(x){return x.trim()}))out.push(row);return out}
+function normDate(x){x=(x||'').trim();var m;
+ if(m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return chk(+m[1],+m[2],+m[3]);
+ if(m=x.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/))return chk(+m[3],+m[2],+m[1]);
+ return null}
+function chk(y,mo,d){var t=new Date(Date.UTC(y,mo-1,d));if(t.getUTCFullYear()!==y||t.getUTCMonth()!==mo-1||t.getUTCDate()!==d)return null;
+ return y+'-'+('0'+mo).slice(-2)+'-'+('0'+d).slice(-2)}
+$('bfile').onchange=function(e){var fl=e.target.files[0];if(!fl)return;var r=new FileReader();r.onload=function(){$('bpaste').value=r.result};r.readAsText(fl)};
+$('tpl').onclick=function(){save('bulk-template.csv',csv(['DLR','Customer Name','Chassis','Date of Purchase','Model'],[['Gold Wing','Example Customer','ME4JC12345','05/11/2026','CB Shine']]))};
+$('bcheck').onclick=function(){
+ var rowsIn=parseCSV($('bpaste').value||'');good=[];
+ if(rowsIn.length&&(rowsIn[0][0]||'').trim().toLowerCase().replace(/[^a-z]/g,'')==='dlr')rowsIn.shift();
+ var seen={},html='',bad=0;
+ rowsIn.forEach(function(r,i){
+  var dn=(r[0]||'').trim(),cu=(r[1]||'').trim(),ch=(r[2]||'').trim(),dt=normDate(r[3]),mo=(r[4]||'').trim(),err=[];
+  var d=D.filter(function(x){return x.name.toLowerCase()===dn.toLowerCase()})[0];
+  var mm=M.filter(function(x){return x.toLowerCase()===mo.toLowerCase()})[0];
+  if(!d)err.push('Dealer not in list');if(!cu)err.push('Customer missing');if(!ch)err.push('Chassis missing');
+  if(!dt)err.push('Bad date');if(!mm)err.push('Model not in list');
+  var k=ch.toLowerCase();if(ch){if(seen[k])err.push('Duplicate chassis (row '+seen[k]+')');else seen[k]=i+1}
+  if(!err.length)good.push({dlr:d.name,customer:cu,chassis:ch,purchase_date:dt,model:mm,pic:d.pic,district:d.district,thana:d.thana});else bad++;
+  html+='<tr><td>'+(i+1)+'</td><td>'+esc(dn)+'</td><td>'+esc(cu)+'</td><td>'+esc(ch)+'</td><td>'+esc(r[3])+'</td><td>'+esc(mo)+'</td><td class="'+(err.length?'err':'ok')+'">'+(err.length?esc(err.join(', ')):'OK')+'</td></tr>'});
+ $('bbody').innerHTML=html;$('bprev').classList.toggle('hide',!rowsIn.length);
+ $('bsum').textContent=good.length+' valid, '+bad+' with errors';
+ $('bsend').disabled=!good.length;
+ $('bmsg').textContent=rowsIn.length?'':'Nothing to check.';$('bmsg').className='err';
+};
+$('bsend').onclick=async function(){
+ if(!good.length)return;var btn=$('bsend'),m=$('bmsg');btn.disabled=true;m.className='';
+ var sent=0;
+ for(var i=0;i<good.length;i+=200){m.textContent='Uploading '+Math.min(i+200,good.length)+' of '+good.length+'…';
+  var r=await sb.from('records').insert(good.slice(i,i+200));
+  if(r.error){m.className='err';m.textContent='Failed after '+sent+' rows: '+r.error.message;btn.disabled=false;return}
+  sent+=Math.min(200,good.length-i)}
+ m.className='ok';m.textContent='Uploaded '+sent+' rows ✓';good=[];$('bpaste').value='';$('bfile').value='';$('bprev').classList.add('hide');
+};
 </script>
 </body>
 </html>
