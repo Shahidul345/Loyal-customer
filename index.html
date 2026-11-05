@@ -62,7 +62,7 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <section id="p3" class="hide">
 <div class="card">
 <div class="head"><h2>Bulk upload</h2><button class="ghost" id="tpl">Download template (CSV)</button></div>
-<p class="info" style="margin:0 0 10px">Columns in this order: <b>DLR, Customer Name, Phone No, Chassis, Date of Purchase, Model</b>. DLR and Model must match the dropdown lists exactly. Date: DD/MM/YYYY or YYYY-MM-DD. Paste rows copied from Excel, or choose a CSV file.</p>
+<p class="info" style="margin:0 0 10px">Columns in this order: <b>DLR, Customer Name, Phone No, Chassis, Date of Purchase, Model</b>. DLR and Model must match the dropdown lists exactly. Date: DD-MM-YY, DD/MM/YYYY or YYYY-MM-DD. Paste rows copied from Excel, or choose a CSV file.</p>
 <label>Choose CSV file<input type="file" id="bfile" accept=".csv,.txt"></label>
 <label style="margin-top:10px">…or paste rows here<textarea id="bpaste" rows="6" style="font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);width:100%"></textarea></label>
 <div class="row" style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="bcheck">Check rows</button><button id="bsend" disabled>Upload valid rows</button><span id="bmsg"></span></div>
@@ -208,9 +208,9 @@ function parseCSV(t){var out=[],row=[],c='',q=false,delim=t.indexOf('\t')>-1?'\t
  row.push(c);if(row.some(function(x){return x.trim()}))out.push(row);return out}
 function normDate(x){x=(x||'').trim();var m;
  if(m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return chk(+m[1],+m[2],+m[3]);
- if(m=x.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/))return chk(+m[3],+m[2],+m[1]);
+ if(m=x.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/))return chk(m[3].length===2?2000+(+m[3]):+m[3],+m[2],+m[1]);
  return null}
-function chk(y,mo,d){var t=new Date(Date.UTC(y,mo-1,d));if(t.getUTCFullYear()!==y||t.getUTCMonth()!==mo-1||t.getUTCDate()!==d)return null;
+function chk(y,mo,d){if(y<2015||y>new Date().getFullYear()+1)return null;var t=new Date(Date.UTC(y,mo-1,d));if(t.getUTCFullYear()!==y||t.getUTCMonth()!==mo-1||t.getUTCDate()!==d)return null;
  return y+'-'+('0'+mo).slice(-2)+'-'+('0'+d).slice(-2)}
 $('bfile').onchange=function(e){var fl=e.target.files[0];if(!fl)return;var r=new FileReader();r.onload=function(){$('bpaste').value=r.result};r.readAsText(fl)};
 $('tpl').onclick=function(){save('bulk-template.csv',csv(['DLR','Customer Name','Phone No','Chassis','Date of Purchase','Model'],[['Gold Wing','Example Customer','01712345678','ME4JC12345','05/11/2026','CB Shine']]))};
