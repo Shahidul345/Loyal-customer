@@ -5,9 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Honda Dealer Sales Entry</title>
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--text:#1c2430;--muted:#6b7686;--line:#dde1e8;--accent:#cc0000;--ok:#12805c;--err:#c2332b}
+:root{color-scheme:light dark;--bg:#f5f6f8;--card:#fff;--text:#1c2430;--muted:#6b7686;--line:#dde1e8;--accent:#cc0000;--ok:#12805c;--err:#c2332b}
 @media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212a;--text:#e7ebf0;--muted:#8b97a8;--line:#2d3644;--accent:#ff5a4f;--ok:#3fbf94;--err:#ff7a70}}
 *{box-sizing:border-box}
+input[type=date]{cursor:pointer;min-height:40px}
+input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer}
 body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:1000px;margin:0 auto;padding:20px 16px 40px}
 h1{font-size:22px;margin:0 0 12px}
@@ -65,6 +67,8 @@ tr.tot td{font-weight:700;border-top:2px solid var(--line)}
 <p class="info" style="margin:0 0 10px">Columns in this order: <b>DLR, Customer Name, Phone No, Chassis, Date of Purchase, Model</b>. DLR and Model must match the dropdown lists exactly. Date: DD-MM-YY, DD/MM/YYYY or YYYY-MM-DD. Paste rows copied from Excel, or choose a CSV file.</p>
 <label>Choose CSV file<input type="file" id="bfile" accept=".csv,.txt"></label>
 <label style="margin-top:10px">…or paste rows here<textarea id="bpaste" rows="6" style="font:inherit;font-size:14px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);width:100%"></textarea></label>
+<label style="margin-top:10px">Date format in your file<select id="dfmt"><option value="auto">Auto-detect</option><option value="dmy">DD/MM/YYYY (day first)</option><option value="mdy">MM/DD/YYYY (month first)</option></select></label>
+<div class="info" id="dnote" style="margin-top:6px"></div>
 <div class="row" style="margin-top:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button id="bcheck">Check rows</button><button id="bsend" disabled>Upload valid rows</button><span id="bmsg"></span></div>
 </div>
 <div class="card hide" id="bprev">
@@ -206,9 +210,9 @@ function parseCSV(t){var out=[],row=[],c='',q=false,delim=t.indexOf('\t')>-1?'\t
   else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(c);c='';if(row.some(function(x){return x.trim()}))out.push(row);row=[]}
   else c+=ch}
  row.push(c);if(row.some(function(x){return x.trim()}))out.push(row);return out}
-function normDate(x){x=(x||'').trim();var m;
+function normDate(x,fmt){x=(x||'').trim();var m;
  if(m=x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))return chk(+m[1],+m[2],+m[3]);
- if(m=x.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/))return chk(m[3].length===2?2000+(+m[3]):+m[3],+m[2],+m[1]);
+ if(m=x.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/))return chk(m[3].length===2?2000+(+m[3]):+m[3],fmt==='mdy'?+m[1]:+m[2],fmt==='mdy'?+m[2]:+m[1]);
  return null}
 function chk(y,mo,d){if(y<2015||y>new Date().getFullYear()+1)return null;var t=new Date(Date.UTC(y,mo-1,d));if(t.getUTCFullYear()!==y||t.getUTCMonth()!==mo-1||t.getUTCDate()!==d)return null;
  return y+'-'+('0'+mo).slice(-2)+'-'+('0'+d).slice(-2)}
@@ -217,16 +221,25 @@ $('tpl').onclick=function(){save('bulk-template.csv',csv(['DLR','Customer Name',
 $('bcheck').onclick=function(){
  var rowsIn=parseCSV($('bpaste').value||'');good=[];
  if(rowsIn.length&&(rowsIn[0][0]||'').trim().toLowerCase().replace(/[^a-z]/g,'')==='dlr')rowsIn.shift();
+ var fmt=$('dfmt').value,note='';
+ if(fmt==='auto'){var dmy=false,mdy=false;
+  rowsIn.forEach(function(r){var m=(r[4]||'').trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/);if(m){if(+m[1]>12)dmy=true;if(+m[2]>12)mdy=true}});
+  if(mdy&&!dmy){fmt='mdy';note='Dates read as MM/DD/YYYY (month first), detected from your file.'}
+  else if(dmy&&!mdy){fmt='dmy';note='Dates read as DD/MM/YYYY (day first), detected from your file.'}
+  else if(dmy&&mdy){fmt='dmy';note='Your file mixes both date orders. Rows that do not fit day-first are marked Bad date. Fix the file or choose a format above.'}
+  else{fmt='dmy';note='Every date could be read either way, so day first (DD/MM/YYYY) was used. Check the date shown after the arrow, or choose the format above.'}
+ }else note=fmt==='mdy'?'Dates read as MM/DD/YYYY (month first).':'Dates read as DD/MM/YYYY (day first).';
+ $('dnote').textContent=note;
  var seen={},html='',bad=0;
  rowsIn.forEach(function(r,i){
-  var dn=(r[0]||'').trim(),cu=(r[1]||'').trim(),ph=normPhone(r[2]),ch=(r[3]||'').trim(),dt=normDate(r[4]),mo=(r[5]||'').trim(),err=[];
+  var dn=(r[0]||'').trim(),cu=(r[1]||'').trim(),ph=normPhone(r[2]),ch=(r[3]||'').trim(),dt=normDate(r[4],fmt),mo=(r[5]||'').trim(),err=[];
   var d=D.filter(function(x){return x.name.toLowerCase()===dn.toLowerCase()})[0];
   var mm=M.filter(function(x){return x.toLowerCase()===mo.toLowerCase()})[0];
   if(!d)err.push('Dealer not in list');if(!cu)err.push('Customer missing');if(!ph)err.push('Bad phone');if(!ch)err.push('Chassis missing');
   if(!dt)err.push('Bad date');if(!mm)err.push('Model not in list');
   var k=ch.toLowerCase();if(ch){if(seen[k])err.push('Duplicate chassis (row '+seen[k]+')');else seen[k]=i+1}
   if(!err.length)good.push({dlr:d.name,customer:cu,phone:ph,chassis:ch,purchase_date:dt,model:mm,pic:d.pic,district:d.district,thana:d.thana});else bad++;
-  html+='<tr><td>'+(i+1)+'</td><td>'+esc(dn)+'</td><td>'+esc(cu)+'</td><td>'+esc(r[2])+'</td><td>'+esc(ch)+'</td><td>'+esc(r[4])+'</td><td>'+esc(mo)+'</td><td class="'+(err.length?'err':'ok')+'">'+(err.length?esc(err.join(', ')):'OK')+'</td></tr>'});
+  html+='<tr><td>'+(i+1)+'</td><td>'+esc(dn)+'</td><td>'+esc(cu)+'</td><td>'+esc(r[2])+'</td><td>'+esc(ch)+'</td><td>'+esc(r[4])+(dt?' → '+dt:'')+'</td><td>'+esc(mo)+'</td><td class="'+(err.length?'err':'ok')+'">'+(err.length?esc(err.join(', ')):'OK')+'</td></tr>'});
  $('bbody').innerHTML=html;$('bprev').classList.toggle('hide',!rowsIn.length);
  $('bsum').textContent=good.length+' valid, '+bad+' with errors';
  $('bsend').disabled=!good.length;
@@ -241,6 +254,9 @@ $('bsend').onclick=async function(){
   sent+=Math.min(200,good.length-i)}
  m.className='ok';m.textContent='Uploaded '+sent+' rows ✓';good=[];$('bpaste').value='';$('bfile').value='';$('bprev').classList.add('hide');
 };
+
+// open the calendar when the date box is clicked
+(function(){var di=document.querySelector('input[name=date]');if(di)di.addEventListener('click',function(){try{di.showPicker()}catch(e){}})})();
 </script>
 </body>
 </html>
