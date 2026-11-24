@@ -116,7 +116,7 @@ var D="HONDA GALLERY|Shahidul San|Open|Chottogram|Noakhali|Maizdi\nRahman Motors
 
 var $=function(i){return document.getElementById(i)};
 var sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-var M="CD-80|Activa|CB Hornet ABS|CB Hornet CBS|CB Hornet STD|CB Shine|CB Shine SP|CB Shine SP CBS|CB Trigger|Trigger DLX|Trigger STD|CBR 150R|CBR 150RAM-4PH|Dio|Dio DLX|Shine 100|Dream 110|Dream Neo|Livo Disc|Livo Disc CBS|Livo Drum|Livo Drum CBS|REPSOL|Wave Alpha|X Blade ABS|X Blade STD|X Blade Fi ABS|SP 125|SP 160|Hornet 2.0|NX 200|Shine 100 DX".split("|");
+var M="CD-80|Activa|CB Hornet ABS|CB Hornet CBS|DIO STD|CB Hornet STD|CB Shine|CB Shine SP|CB Shine SP CBS|CB Trigger|Trigger DLX|Trigger STD|CBR 150R|CBR 150RAM-4PH|Dio|Dio DLX|Shine 100|Dream 110|Dream Neo|Livo Disc|Livo Disc CBS|Livo Drum|Livo Drum CBS|REPSOL|Wave Alpha|X Blade ABS|X Blade STD|X Blade Fi ABS|SP 125|SP 160|Hornet 2.0|NX 200|Shine 100 DX".split("|");
 var msel=document.getElementById('msel');
 M.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;msel.appendChild(o)});
 var oo=document.createElement('option');oo.value='__other';oo.textContent='Other (type below)';msel.appendChild(oo);
