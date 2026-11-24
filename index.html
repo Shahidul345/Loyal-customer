@@ -230,17 +230,18 @@ $('bcheck').onclick=function(){
   else{fmt='dmy';note='Every date could be read either way, so day first (DD/MM/YYYY) was used. Check the date shown after the arrow, or choose the format above.'}
  }else note=fmt==='mdy'?'Dates read as MM/DD/YYYY (month first).':'Dates read as DD/MM/YYYY (day first).';
  $('dnote').textContent=note;
- var seen={},html='',bad=0;
+ var seen={},html='',bad=0,unk={},nk=function(v){return String(v).toLowerCase().replace(/[^a-z0-9]/g,'')};
  rowsIn.forEach(function(r,i){
   var dn=(r[0]||'').trim(),cu=(r[1]||'').trim(),ph=normPhone(r[2]),ch=(r[3]||'').trim(),dt=normDate(r[4],fmt),mo=(r[5]||'').trim(),err=[];
   var d=D.filter(function(x){return x.name.toLowerCase()===dn.toLowerCase()})[0];
-  var mm=M.filter(function(x){return x.toLowerCase()===mo.toLowerCase()})[0];
+  var mm=M.filter(function(x){return nk(x)===nk(mo)})[0];
   if(!d)err.push('Dealer not in list');if(!cu)err.push('Customer missing');if(!ph)err.push('Bad phone');if(!ch)err.push('Chassis missing');
-  if(!dt)err.push('Bad date');if(!mm)err.push('Model not in list');
+  if(!dt)err.push('Bad date');if(!mm){err.push('Model not in list');if(mo)unk[mo]=(unk[mo]||0)+1}
   var k=ch.toLowerCase();if(ch){if(seen[k])err.push('Duplicate chassis (row '+seen[k]+')');else seen[k]=i+1}
   if(!err.length)good.push({dlr:d.name,customer:cu,phone:ph,chassis:ch,purchase_date:dt,model:mm,pic:d.pic,district:d.district,thana:d.thana});else bad++;
   html+='<tr><td>'+(i+1)+'</td><td>'+esc(dn)+'</td><td>'+esc(cu)+'</td><td>'+esc(r[2])+'</td><td>'+esc(ch)+'</td><td>'+esc(r[4])+(dt?' → '+dt:'')+'</td><td>'+esc(mo)+'</td><td class="'+(err.length?'err':'ok')+'">'+(err.length?esc(err.join(', ')):'OK')+'</td></tr>'});
- $('bbody').innerHTML=html;$('bprev').classList.toggle('hide',!rowsIn.length);
+ $('bbody').innerHTML=html;
+ if(Object.keys(unk).length)$('dnote').textContent=$('dnote').textContent+' Models not in the list: '+Object.keys(unk).map(function(k){return k+' ('+unk[k]+')'}).join(', ')+'.';$('bprev').classList.toggle('hide',!rowsIn.length);
  $('bsum').textContent=good.length+' valid, '+bad+' with errors';
  $('bsend').disabled=!good.length;
  $('bmsg').textContent=rowsIn.length?'':'Nothing to check.';$('bmsg').className='err';
